@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build APK (Auto with Icon)
+    name: Build APK (Safe Mode)
     runs-on: ubuntu-latest
 
     steps:
@@ -28,24 +28,19 @@ jobs:
 
       - name: Create Project & Fix Configs
         run: |
-          # 1. Generate Android folder
+          # ১. অ্যান্ড্রয়েড ফোল্ডার জেনারেট করা
           flutter create . --org com.example --project-name araimox
           
-          # 2. App icon setup (magic trick)
-          # Replace Flutter default icons with your logo
-          cp assets/logo.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
-          cp assets/logo.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
-          cp assets/logo.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
-          cp assets/logo.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
-          cp assets/logo.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+          # [NOTE] আইকন কপি করার কোড বাদ দেওয়া হয়েছে কারণ এটি বিল্ড ফেইল করাচ্ছিল।
+          # আমরা ডিফল্ট আইকন দিয়ে আগে বিল্ড সফল করব।
 
-          # 3. Inject permissions
+          # ২. পারমিশন ইঞ্জেক্ট করা
           sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
           
-          # 4. Enable Cleartext Traffic (HTTP support)
+          # ৩. Cleartext Traffic (HTTP) সাপোর্ট
           sed -i 's/android:label="araimox"/android:label="araimox" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
-          # 5. Kotlin DSL (.kts) fix - set minSdkVersion to 21
+          # ৪. Kotlin DSL (.kts) ফিক্স - minSdkVersion 21 সেট করা
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
 
       - name: Install Dependencies
