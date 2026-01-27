@@ -18,9 +18,8 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    // আগের 7.3.0 ভার্সনটি পরিবর্তন করে 8.2.1 করা হলো
-    id "com.android.application" version "8.2.1" apply false
-    // আগের 1.7.10 ভার্সনটি পরিবর্তন করে 1.9.22 করা হলো
+    // FIXED: Version bumped to 8.3.2 to support Android SDK 35
+    id "com.android.application" version "8.3.2" apply false
     id "org.jetbrains.kotlin.android" version "1.9.22" apply false
 }
 
