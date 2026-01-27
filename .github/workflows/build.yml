@@ -1,14 +1,13 @@
-name: Araimox Android Build
+name: Araimox Auto Build
 
 on:
   push:
     branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+  workflow_dispatch:
 
 jobs:
   build:
-    name: Build APK
+    name: Build APK (Auto Gen)
     runs-on: ubuntu-latest
 
     steps:
@@ -24,8 +23,25 @@ jobs:
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
-          channel: 'stable' # FIXED: Always use the latest stable version
+          channel: 'stable'
           cache: true
+
+      # --- এই স্টেপটিই হলো আসল ম্যাজিক ---
+      - name: Generate Android Files & Fix Permissions
+        run: |
+          # ১. অ্যান্ড্রয়েড ফোল্ডার অটোমেটিক তৈরি করা হচ্ছে
+          flutter create . --org com.example --project-name araimox
+          
+          # ২. ইন্টারনেট পারমিশন ইঞ্জেক্ট করা হচ্ছে (IPTV চলার জন্য)
+          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
+          
+          # ৩. Cleartext Traffic (HTTP) সাপোর্ট দেওয়া হচ্ছে
+          sed -i 's/android:label="araimox"/android:label="araimox" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+
+          # ৪. ভিডিও প্লেয়ারের জন্য minSdkVersion ফিক্স করা হচ্ছে (21+)
+          sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle
+          # অথবা নতুন ভার্সনের জন্য:
+          sed -i 's/minSdkVersion flutter.minSdkVersion/minSdkVersion 21/' android/app/build.gradle || true
 
       - name: Install Dependencies
         run: flutter pub get
