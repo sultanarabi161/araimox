@@ -18,8 +18,10 @@ pluginManagement {
 
 plugins {
     id "dev.flutter.flutter-plugin-loader" version "1.0.0"
-    id "com.android.application" version "7.3.0" apply false
-    id "org.jetbrains.kotlin.android" version "1.7.10" apply false
+    // আগের 7.3.0 ভার্সনটি পরিবর্তন করে 8.2.1 করা হলো
+    id "com.android.application" version "8.2.1" apply false
+    // আগের 1.7.10 ভার্সনটি পরিবর্তন করে 1.9.22 করা হলো
+    id "org.jetbrains.kotlin.android" version "1.9.22" apply false
 }
 
 include ":app"
