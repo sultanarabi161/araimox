@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build APK (Auto Gen)
+    name: Build APK (Auto with Icon)
     runs-on: ubuntu-latest
 
     steps:
@@ -26,19 +26,26 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Generate Android Files & Fix Permissions
+      - name: Create Project & Fix Configs
         run: |
-          # ১. অ্যান্ড্রয়েড ফোল্ডার জেনারেট করা
+          # 1. Generate Android folder
           flutter create . --org com.example --project-name araimox
           
-          # ২. পারমিশন ইঞ্জেক্ট করা (XML ফাইলে কোনো চেঞ্জ নেই, তাই এটি ঠিক আছে)
-          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
+          # 2. App icon setup (magic trick)
+          # Replace Flutter default icons with your logo
+          cp assets/logo.png android/app/src/main/res/mipmap-mdpi/ic_launcher.png
+          cp assets/logo.png android/app/src/main/res/mipmap-hdpi/ic_launcher.png
+          cp assets/logo.png android/app/src/main/res/mipmap-xhdpi/ic_launcher.png
+          cp assets/logo.png android/app/src/main/res/mipmap-xxhdpi/ic_launcher.png
+          cp assets/logo.png android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png
+
+          # 3. Inject permissions
+          sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
           
-          # ৩. Cleartext Traffic (HTTP) সাপোর্ট
+          # 4. Enable Cleartext Traffic (HTTP support)
           sed -i 's/android:label="araimox"/android:label="araimox" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
-          # ৪. [FIXED] এখন build.gradle.kts ফাইল এডিট করা হচ্ছে
-          # minSdkVersion 21 সেট করা হচ্ছে যাতে ভিডিও প্লেয়ার চলে
+          # 5. Kotlin DSL (.kts) fix - set minSdkVersion to 21
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
 
       - name: Install Dependencies
