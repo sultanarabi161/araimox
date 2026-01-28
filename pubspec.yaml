@@ -9,19 +9,24 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  # UI & Icons
   cupertino_icons: ^1.0.6
-  # Video Player & UI
+  google_fonts: ^6.1.0
+  marquee: ^2.2.3
+  
+  # Video Player (ExoPlayer)
   video_player: ^2.8.2
   chewie: ^1.7.5
-  # Networking
-  http: ^1.2.0
-  # UI Utilities
-  marquee: ^2.2.3
-  google_fonts: ^6.1.0
-  provider: ^6.1.1
-  cached_network_image: ^3.3.1
-  # To keep screen on during playback
   wakelock_plus: ^1.1.4
+  
+  # Network & Data
+  http: ^1.2.0
+  cached_network_image: ^3.3.1
+  provider: ^6.1.1
+  
+  # Utilities
+  url_launcher: ^6.2.4
+  package_info_plus: ^5.0.1
 
 dev_dependencies:
   flutter_test:
