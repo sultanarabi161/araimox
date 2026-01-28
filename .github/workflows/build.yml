@@ -1,4 +1,4 @@
-name: Araimox Auto Build
+name: Araimox Ninja Build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build APK (Safe Mode)
+    name: Build APK (Auto & Smart)
     runs-on: ubuntu-latest
 
     steps:
@@ -26,21 +26,19 @@ jobs:
           channel: 'stable'
           cache: true
 
-      - name: Create Project & Fix Configs
+      - name: Generate Android Project
         run: |
-          # ১. অ্যান্ড্রয়েড ফোল্ডার জেনারেট করা
-          flutter create . --org com.example --project-name araimox
+          # 1. Create fresh Android project
+          flutter create . --org com.araimox.player --project-name araimox
           
-          # [NOTE] আইকন কপি করার কোড বাদ দেওয়া হয়েছে কারণ এটি বিল্ড ফেইল করাচ্ছিল।
-          # আমরা ডিফল্ট আইকন দিয়ে আগে বিল্ড সফল করব।
-
-          # ২. পারমিশন ইঞ্জেক্ট করা
+          # 2. Inject Permissions (Internet & Wake Lock)
           sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
           
-          # ৩. Cleartext Traffic (HTTP) সাপোর্ট
+          # 3. Enable Cleartext Traffic (For HTTP streams)
           sed -i 's/android:label="araimox"/android:label="araimox" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
-          # ৪. Kotlin DSL (.kts) ফিক্স - minSdkVersion 21 সেট করা
+          # 4. Fix MinSDK for Video Player (Required 21+)
+          # This handles Kotlin DSL (.kts) build files
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
 
       - name: Install Dependencies
