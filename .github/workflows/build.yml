@@ -1,4 +1,4 @@
-name: Araimox Ninja Build
+name: Araimox Ultimate Build
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
 
 jobs:
   build:
-    name: Build APK (Auto & Smart)
+    name: Build APK (Red Theme)
     runs-on: ubuntu-latest
 
     steps:
@@ -31,18 +31,22 @@ jobs:
           # 1. Create fresh Android project
           flutter create . --org com.araimox.player --project-name araimox
           
-          # 2. Inject Permissions (Internet & Wake Lock)
+          # 2. Inject Permissions & PiP Support
           sed -i 's/<application/<uses-permission android:name="android.permission.INTERNET"\/>\n    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"\/>\n    <uses-permission android:name="android.permission.WAKE_LOCK"\/>\n    <application/' android/app/src/main/AndroidManifest.xml
           
-          # 3. Enable Cleartext Traffic (For HTTP streams)
-          sed -i 's/android:label="araimox"/android:label="araimox" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
+          # 3. Enable PiP in Activity & Cleartext Traffic
+          sed -i 's/android:label="araimox"/android:label="araimox" android:supportsPictureInPicture="true" android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|screenLayout|density|uiMode" android:usesCleartextTraffic="true"/' android/app/src/main/AndroidManifest.xml
 
-          # 4. Fix MinSDK for Video Player (Required 21+)
-          # This handles Kotlin DSL (.kts) build files
+          # 4. Fix MinSDK (21+)
           sed -i 's/minSdk = flutter.minSdkVersion/minSdk = 21/' android/app/build.gradle.kts
 
       - name: Install Dependencies
         run: flutter pub get
+
+      # --- ICON FIX START ---
+      - name: Generate App Icon
+        run: dart run flutter_launcher_icons
+      # --- ICON FIX END ---
 
       - name: Build APK
         run: flutter build apk --release --split-per-abi
