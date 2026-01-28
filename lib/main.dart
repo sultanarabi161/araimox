@@ -9,13 +9,14 @@ import 'package:provider/provider.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 // --- CONFIGURATION ---
-const String appName = "araimox";
+const String appName = "Araimox";
 const String logoPath = "assets/logo.png";
-const String m3uPlaylistUrl = "https://mxonlive.short.gy/araimo-playlist-m3u"; 
+const String customUserAgent = "AraimoxPlayer/4.0 (Linux; Android 10) ExoPlayerLib/2.18.1";
 
-const String noticeJsonUrl = "https://raw.githubusercontent.com/sultanarabi161/araimox/refs/heads/main/notice.json"; 
+const String configJsonUrl = "https://raw.githubusercontent.com/mxonlive/araimo/refs/heads/main/data.json"; 
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -30,6 +31,7 @@ void main() {
   );
 }
 
+// --- THEME ---
 class AraimoxApp extends StatelessWidget {
   const AraimoxApp({super.key});
 
@@ -40,12 +42,13 @@ class AraimoxApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF0F0F0F),
         colorScheme: ColorScheme.fromSeed(
-          seedColor: Colors.deepPurple,
-          brightness: Brightness.dark, 
-          background: Colors.black,
+          seedColor: const Color(0xFF6200EA),
+          brightness: Brightness.dark,
+          surface: const Color(0xFF1E1E1E),
         ),
-        scaffoldBackgroundColor: Colors.black,
         textTheme: GoogleFonts.poppinsTextTheme(Theme.of(context).textTheme).apply(
           bodyColor: Colors.white,
           displayColor: Colors.white,
@@ -62,60 +65,90 @@ class Channel {
   final String group;
   final String logo;
   final String url;
-
   Channel({required this.name, required this.group, required this.logo, required this.url});
 }
 
-// --- PROVIDER (LOGIC) ---
+class AppConfig {
+  String notice;
+  String aboutNotice;
+  String playlistUrl;
+  String telegramUrl;
+  bool showUpdate;
+  String updateVersion;
+  String updateNote;
+  String downloadUrl;
+
+  AppConfig({
+    this.notice = "Welcome to Araimo!",
+    this.aboutNotice = "Loading...",
+    this.playlistUrl = "",
+    this.telegramUrl = "",
+    this.showUpdate = false,
+    this.updateVersion = "",
+    this.updateNote = "",
+    this.downloadUrl = "",
+  });
+
+  factory AppConfig.fromJson(Map<String, dynamic> json) {
+    return AppConfig(
+      notice: json['notice'] ?? "Welcome",
+      aboutNotice: json['about_notice'] ?? "",
+      playlistUrl: json['playlist_url'] ?? "",
+      telegramUrl: json['telegram_url'] ?? "",
+      showUpdate: json['update_data']?['show'] ?? false,
+      updateVersion: json['update_data']?['version'] ?? "",
+      updateNote: json['update_data']?['note'] ?? "",
+      downloadUrl: json['update_data']?['download_url'] ?? "",
+    );
+  }
+}
+
+// --- PROVIDER ---
 class AppDataProvider extends ChangeNotifier {
   List<Channel> allChannels = [];
   List<String> groups = ["All"];
   List<Channel> displayedChannels = [];
   String selectedGroup = "All";
-  String noticeText = "Welcome to Araimox! Loading data...";
+  AppConfig config = AppConfig();
   bool isLoading = true;
   bool hasError = false;
 
   AppDataProvider() {
-    fetchData();
+    initApp();
   }
 
-  Future<void> fetchData() async {
-    isLoading = true;
-    hasError = false;
-    notifyListeners();
-
+  Future<void> initApp() async {
     try {
-      await Future.wait([fetchM3U(), fetchNotice()]);
+      isLoading = true;
+      notifyListeners();
+      
+      // 1. Fetch JSON Config first
+      final response = await http.get(Uri.parse(configJsonUrl));
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        config = AppConfig.fromJson(data);
+        
+        // 2. Fetch Playlist from JSON url
+        if (config.playlistUrl.isNotEmpty) {
+          await fetchM3U(config.playlistUrl);
+        }
+      }
     } catch (e) {
       hasError = true;
-      noticeText = "Error loading data. Please check internet.";
+      debugPrint("Error: $e");
     } finally {
       isLoading = false;
       notifyListeners();
     }
   }
 
-  Future<void> fetchNotice() async {
+  Future<void> fetchM3U(String url) async {
     try {
-      final response = await http.get(Uri.parse(noticeJsonUrl));
+      final response = await http.get(Uri.parse(url));
       if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        noticeText = data['notice'] ?? "Welcome to Araimox!";
+        parseM3U(response.body);
       }
-    } catch (_) {
-      // Silent fail for notice
-      noticeText = "Welcome to Araimox - Watch Live Sports";
-    }
-  }
-
-  Future<void> fetchM3U() async {
-    final response = await http.get(Uri.parse(m3uPlaylistUrl));
-    if (response.statusCode == 200) {
-      parseM3U(response.body);
-    } else {
-      throw Exception("Failed to load M3U");
-    }
+    } catch (_) {}
   }
 
   void parseM3U(String content) {
@@ -167,7 +200,7 @@ class AppDataProvider extends ChangeNotifier {
   }
 }
 
-// --- UI: HOME PAGE ---
+// --- HOME PAGE ---
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
 
@@ -179,13 +212,13 @@ class HomePage extends StatelessWidget {
       appBar: AppBar(
         leading: Padding(
           padding: const EdgeInsets.all(8.0),
-          child: Image.asset(logoPath, errorBuilder: (_,__,___) => const Icon(Icons.sports_soccer)),
+          child: Image.asset(logoPath, errorBuilder: (_,__,___) => const Icon(Icons.play_circle_fill)),
         ),
         title: const Text(appName, style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
-            icon: const Icon(Icons.info_outline),
+            icon: const Icon(Icons.info_outline, color: Colors.blueAccent),
             onPressed: () {
               Navigator.push(context, MaterialPageRoute(builder: (context) => const InfoPage()));
             },
@@ -194,80 +227,82 @@ class HomePage extends StatelessWidget {
       ),
       body: provider.isLoading
           ? const Center(child: CircularProgressIndicator())
-          : provider.hasError 
-            ? Center(child: ElevatedButton(onPressed: provider.fetchData, child: const Text("Retry")))
+          : provider.hasError
+            ? Center(child: ElevatedButton(onPressed: provider.initApp, child: const Text("Retry")))
             : Column(
-              children: [
-                // Notice Board
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 10),
-                  child: Container(
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: Colors.deepPurple.shade900,
-                      borderRadius: BorderRadius.circular(30),
-                      border: Border.all(color: Colors.deepPurpleAccent.withOpacity(0.5)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(30),
-                      child: Marquee(
-                        text: provider.noticeText + "      *** ",
-                        style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amber),
-                        scrollAxis: Axis.horizontal,
-                        velocity: 40.0,
-                        blankSpace: 20.0,
+                children: [
+                  // Marquee Notice
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+                    child: Container(
+                      height: 40,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(colors: [Colors.deepPurple.shade900, Colors.black]),
+                        borderRadius: BorderRadius.circular(30),
+                        border: Border.all(color: Colors.deepPurpleAccent.withOpacity(0.5)),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(30),
+                        child: Marquee(
+                          text: provider.config.notice + "      *** ",
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.amberAccent),
+                          velocity: 40.0,
+                          blankSpace: 20.0,
+                        ),
                       ),
                     ),
                   ),
-                ),
 
-                // Groups
-                SizedBox(
-                  height: 50,
-                  child: ListView.builder(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: provider.groups.length,
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    itemBuilder: (context, index) {
-                      final group = provider.groups[index];
-                      final isSelected = group == provider.selectedGroup;
-                      return Padding(
-                        padding: const EdgeInsets.only(right: 8.0),
-                        child: ChoiceChip(
-                          label: Text(group),
-                          selected: isSelected,
-                          onSelected: (_) => provider.filterChannels(group),
-                          shape: const StadiumBorder(),
-                          selectedColor: Colors.deepPurpleAccent,
-                          labelStyle: TextStyle(color: isSelected ? Colors.white : Colors.grey),
-                          backgroundColor: Colors.grey.shade900,
-                        ),
-                      );
-                    },
-                  ),
-                ),
-
-                const Divider(height: 1),
-
-                // Channels Grid
-                Expanded(
-                  child: GridView.builder(
-                    padding: const EdgeInsets.all(10),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 4, 
-                      childAspectRatio: 0.75,
-                      crossAxisSpacing: 8,
-                      mainAxisSpacing: 8,
+                  // Group Chips
+                  SizedBox(
+                    height: 50,
+                    child: ListView.builder(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: provider.groups.length,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      itemBuilder: (context, index) {
+                        final group = provider.groups[index];
+                        final isSelected = group == provider.selectedGroup;
+                        return Padding(
+                          padding: const EdgeInsets.only(right: 8.0),
+                          child: ChoiceChip(
+                            label: Text(group),
+                            selected: isSelected,
+                            onSelected: (_) => provider.filterChannels(group),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                            selectedColor: Colors.deepPurpleAccent,
+                            backgroundColor: Colors.grey.shade900,
+                            labelStyle: TextStyle(
+                              color: isSelected ? Colors.white : Colors.grey,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal
+                            ),
+                          ),
+                        );
+                      },
                     ),
-                    itemCount: provider.displayedChannels.length,
-                    itemBuilder: (context, index) {
-                      final channel = provider.displayedChannels[index];
-                      return ChannelCard(channel: channel);
-                    },
                   ),
-                ),
-              ],
-            ),
+
+                  const Divider(color: Colors.white10),
+
+                  // Channels Grid
+                  Expanded(
+                    child: GridView.builder(
+                      padding: const EdgeInsets.all(12),
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4, 
+                        childAspectRatio: 0.8,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                      ),
+                      itemCount: provider.displayedChannels.length,
+                      itemBuilder: (context, index) {
+                        final channel = provider.displayedChannels[index];
+                        return ChannelCard(channel: channel);
+                      },
+                    ),
+                  ),
+                ],
+              ),
     );
   }
 }
@@ -287,9 +322,10 @@ class ChannelCard extends StatelessWidget {
       },
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.grey.shade900,
+          color: const Color(0xFF2A2A2A),
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.white10),
+          boxShadow: [BoxShadow(color: Colors.black45, blurRadius: 4, offset: Offset(2,2))]
         ),
         child: Column(
           children: [
@@ -300,7 +336,7 @@ class ChannelCard extends StatelessWidget {
                 child: CachedNetworkImage(
                   imageUrl: channel.logo,
                   errorWidget: (_,__,___) => Image.asset(logoPath),
-                  placeholder: (_,__) => const Center(child: Icon(Icons.tv, size: 20, color: Colors.grey)),
+                  placeholder: (_,__) => const Icon(Icons.tv, size: 20, color: Colors.grey),
                   fit: BoxFit.contain,
                 ),
               ),
@@ -309,13 +345,10 @@ class ChannelCard extends StatelessWidget {
               flex: 2,
               child: Container(
                 width: double.infinity,
-                padding: const EdgeInsets.all(4.0),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.05),
-                  borderRadius: const BorderRadius.only(
-                    bottomLeft: Radius.circular(12),
-                    bottomRight: Radius.circular(12)
-                  )
+                padding: const EdgeInsets.symmetric(horizontal: 4),
+                decoration: const BoxDecoration(
+                  color: Colors.white10,
+                  borderRadius: BorderRadius.only(bottomLeft: Radius.circular(12), bottomRight: Radius.circular(12))
                 ),
                 child: Center(
                   child: Text(
@@ -323,7 +356,7 @@ class ChannelCard extends StatelessWidget {
                     textAlign: TextAlign.center,
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 9, fontWeight: FontWeight.bold),
+                    style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold),
                   ),
                 ),
               ),
@@ -335,30 +368,112 @@ class ChannelCard extends StatelessWidget {
   }
 }
 
-// --- UI: INFO PAGE ---
+// --- INFO PAGE ---
 class InfoPage extends StatelessWidget {
   const InfoPage({super.key});
 
+  Future<void> _launchUrl(String url) async {
+    if (url.isNotEmpty) {
+      final uri = Uri.parse(url);
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        debugPrint('Could not launch $url');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final config = Provider.of<AppDataProvider>(context).config;
+
     return Scaffold(
-      appBar: AppBar(title: const Text("App Information")),
-      body: Center(
+      appBar: AppBar(title: const Text("Information")),
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset(logoPath, height: 100),
-            const SizedBox(height: 20),
+            // Logo & App Name
+            Image.asset(logoPath, height: 80),
+            const SizedBox(height: 10),
             const Text(appName, style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-            const Text("Version 1.0.0", style: TextStyle(color: Colors.grey)),
-            const SizedBox(height: 20),
-            const Padding(
-              padding: EdgeInsets.all(20.0),
-              child: Text(
-                "Araimox is a smart sports streaming application designed for the best user experience. Watch your favorite channels live!",
-                textAlign: TextAlign.center,
-              ),
+            const Text("Version 4.0.0", style: TextStyle(color: Colors.grey)),
+            const SizedBox(height: 30),
+
+            // About Card
+            _buildInfoCard(
+              title: "About",
+              content: config.aboutNotice,
+              icon: Icons.info,
+              color: Colors.blueAccent,
             ),
+
+            const SizedBox(height: 15),
+
+            // Update Card (Conditional)
+            if (config.showUpdate)
+              _buildInfoCard(
+                title: "New Update Available!",
+                content: "${config.updateVersion}\n${config.updateNote}",
+                icon: Icons.system_update,
+                color: Colors.green,
+                actionText: "DOWNLOAD NOW",
+                onTap: () => _launchUrl(config.downloadUrl),
+              ),
+
+            const SizedBox(height: 15),
+
+            // Telegram Card
+            _buildInfoCard(
+              title: "Join Community",
+              content: "Join our Telegram channel for latest updates and support.",
+              icon: Icons.telegram,
+              color: Colors.blue,
+              actionText: "JOIN TELEGRAM",
+              onTap: () => _launchUrl(config.telegramUrl),
+            ),
+          ],
+        ),
+      ),
+      bottomNavigationBar: Container(
+        padding: const EdgeInsets.all(15),
+        color: Colors.black,
+        child: const Text(
+          "Developed by Shakil Coder",
+          textAlign: TextAlign.center,
+          style: TextStyle(color: Colors.grey, fontSize: 12),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInfoCard({required String title, required String content, required IconData icon, required Color color, String? actionText, VoidCallback? onTap}) {
+    return Card(
+      color: const Color(0xFF1E1E1E),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+      child: Padding(
+        padding: const EdgeInsets.all(15.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(icon, color: color),
+                const SizedBox(width: 10),
+                Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const Divider(color: Colors.white24),
+            Text(content, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+            if (actionText != null) ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: onTap,
+                  style: ElevatedButton.styleFrom(backgroundColor: color),
+                  child: Text(actionText, style: const TextStyle(color: Colors.white)),
+                ),
+              )
+            ]
           ],
         ),
       ),
@@ -366,7 +481,7 @@ class InfoPage extends StatelessWidget {
   }
 }
 
-// --- UI: PLAYER PAGE ---
+// --- PLAYER PAGE ---
 class PlayerPage extends StatefulWidget {
   final Channel channel;
   const PlayerPage({super.key, required this.channel});
@@ -383,24 +498,29 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   void initState() {
     super.initState();
-    WakelockPlus.enable(); // Screen won't sleep
+    WakelockPlus.enable();
     initializePlayer();
   }
 
   Future<void> initializePlayer() async {
     try {
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(widget.channel.url));
+      // 1. User Agent Setup
+      _videoPlayerController = VideoPlayerController.networkUrl(
+        Uri.parse(widget.channel.url),
+        httpHeaders: {
+          'User-Agent': customUserAgent, // The secret sauce for streaming
+        }
+      );
       await _videoPlayerController.initialize();
       
       _chewieController = ChewieController(
         videoPlayerController: _videoPlayerController,
         autoPlay: true,
-        looping: false,
         aspectRatio: 16 / 9,
         allowFullScreen: true,
-        allowMuting: true,
+        showControls: true,
         errorBuilder: (context, errorMessage) {
-          return Center(child: Text("Stream Error: $errorMessage", style: const TextStyle(color: Colors.white)));
+          return Center(child: Text("Stream Error. Retry.", style: TextStyle(color: Colors.red)));
         },
       );
       setState(() {});
@@ -420,7 +540,7 @@ class _PlayerPageState extends State<PlayerPage> {
   @override
   Widget build(BuildContext context) {
     final provider = Provider.of<AppDataProvider>(context, listen: false);
-    // Filter related channels (Same Group)
+    // Filter channels from the SAME group (Related)
     final relatedChannels = provider.allChannels
         .where((c) => c.group == widget.channel.group && c.url != widget.channel.url)
         .toList();
@@ -429,9 +549,8 @@ class _PlayerPageState extends State<PlayerPage> {
       backgroundColor: Colors.black,
       body: SafeArea(
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // 1. Player
+            // A. Video Player Section
             Stack(
               children: [
                 AspectRatio(
@@ -439,138 +558,94 @@ class _PlayerPageState extends State<PlayerPage> {
                   child: Container(
                     color: Colors.black,
                     child: isError 
-                        ? const Center(child: Text("Cannot play this stream", style: TextStyle(color: Colors.red)))
+                        ? const Center(child: Icon(Icons.error, color: Colors.red, size: 50))
                         : _chewieController != null && _chewieController!.videoPlayerController.value.isInitialized
                           ? Chewie(controller: _chewieController!)
-                          : const Center(child: CircularProgressIndicator()),
+                          : const Center(child: CircularProgressIndicator(color: Colors.deepPurpleAccent)),
                   ),
                 ),
                 Positioned(
-                  top: 10,
-                  left: 10,
+                  top: 10, left: 10,
                   child: CircleAvatar(
                     backgroundColor: Colors.black54,
-                    child: IconButton(
-                      icon: const Icon(Icons.arrow_back, color: Colors.white),
-                      onPressed: () => Navigator.pop(context),
-                    ),
+                    child: BackButton(color: Colors.white),
                   ),
                 ),
               ],
             ),
 
-            // 2. Info Area
-            Padding(
-              padding: const EdgeInsets.all(16.0),
+            // B. Channel Info
+            Container(
+              padding: const EdgeInsets.all(12),
+              color: const Color(0xFF1E1E1E),
               child: Row(
                 children: [
-                  Container(
-                    width: 50, height: 50,
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      image: DecorationImage(
-                        image: widget.channel.logo.isNotEmpty 
-                          ? NetworkImage(widget.channel.logo) 
-                          : const AssetImage(logoPath) as ImageProvider,
-                        fit: BoxFit.contain,
-                      )
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: CachedNetworkImage(
+                      imageUrl: widget.channel.logo,
+                      width: 50, height: 50, fit: BoxFit.cover,
+                      errorWidget: (_,__,___) => Image.asset(logoPath, width: 50),
                     ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 15),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          widget.channel.name,
-                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
-                        ),
-                        const SizedBox(height: 4),
+                        Text(widget.channel.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                        const SizedBox(height: 5),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: Colors.deepPurple,
-                            borderRadius: BorderRadius.circular(4)
-                          ),
-                          child: Text(
-                            widget.channel.group,
-                            style: const TextStyle(fontSize: 12, color: Colors.white),
-                          ),
-                        ),
+                          decoration: BoxDecoration(color: Colors.deepPurple, borderRadius: BorderRadius.circular(4)),
+                          child: Text(widget.channel.group, style: const TextStyle(fontSize: 11)),
+                        )
                       ],
                     ),
-                  ),
+                  )
                 ],
               ),
             ),
 
-            const Divider(color: Colors.white24),
-
-            // 3. Related Channels Title
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0),
-              child: Text(
-                "More from ${widget.channel.group}",
-                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey),
+            // C. Related Channels Title
+            const Padding(
+              padding: EdgeInsets.all(12.0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text("More in this Group", style: TextStyle(color: Colors.grey, fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 10),
 
-            // 4. Related Channels List
+            // D. Related Channels (LIST STYLE)
             Expanded(
               child: relatedChannels.isEmpty 
-                  ? const Center(child: Text("No other channels in this group", style: TextStyle(color: Colors.grey)))
-                  : GridView.builder(
-                      padding: const EdgeInsets.all(10),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 3, // 3 in related list
-                        childAspectRatio: 1.0,
-                        crossAxisSpacing: 10,
-                        mainAxisSpacing: 10,
-                      ),
-                      itemCount: relatedChannels.length,
-                      itemBuilder: (context, index) {
-                        final related = relatedChannels[index];
-                        return GestureDetector(
+                ? const Center(child: Text("No more channels in this group", style: TextStyle(color: Colors.grey)))
+                : ListView.builder( // Changed Grid to ListView
+                    itemCount: relatedChannels.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    itemBuilder: (context, index) {
+                      final related = relatedChannels[index];
+                      return Card(
+                        color: const Color(0xFF252525),
+                        margin: const EdgeInsets.only(bottom: 8),
+                        child: ListTile(
+                          leading: CachedNetworkImage(
+                            imageUrl: related.logo,
+                            width: 50,
+                            errorWidget: (_,__,___) => const Icon(Icons.tv, color: Colors.grey),
+                          ),
+                          title: Text(related.name, style: const TextStyle(fontSize: 14)),
+                          trailing: const Icon(Icons.play_arrow, color: Colors.deepPurpleAccent),
                           onTap: () {
-                            // Replace current page with new channel
                              Navigator.pushReplacement(
                               context,
                               MaterialPageRoute(builder: (context) => PlayerPage(channel: related)),
                             );
                           },
-                          child: Container(
-                            decoration: BoxDecoration(
-                              color: Colors.grey.shade900,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Expanded(
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(8.0),
-                                    child: CachedNetworkImage(
-                                      imageUrl: related.logo,
-                                      errorWidget: (_,__,___) => const Icon(Icons.tv, color: Colors.grey),
-                                    ),
-                                  ),
-                                ),
-                                Padding(
-                                  padding: const EdgeInsets.all(4.0),
-                                  child: Text(
-                                    related.name,
-                                    maxLines: 1,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(fontSize: 10),
-                                  ),
-                                )
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    },
+                  ),
             ),
           ],
         ),
